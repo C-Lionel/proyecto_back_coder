@@ -1,43 +1,35 @@
 import express from 'express';
-import ProductManager from './dao/ProductManager.js';
+import { engine } from 'express-handlebars';
+import productsRouter from './routes/products.router.js';
+import viewsRouter from './routes/views.routes.js';
+import { root } from './utils.js';
+import {Server} from 'socket.io';
 
 const app = express();
+const PORT = 3000;
 
-app.listen(3000, () => {
-    console.log('Server levantado..')
+// Configuración del servidor para trabajar con Handlebars
+app.engine('handlebars', engine({
+    helpers: {
+        isStock: (stock, min) => stock > min
+    },
+    partialsDir: root + '/views/partials'
+}))
+app.set('view engine', 'handlebars');
+app.set('views', root + '/views');
+
+// Referencia al server HTTP
+const httpServer = app.listen(PORT, () => {
+    console.log(`Servidor escuchando en puerto ${PORT}`);
 });
 
-// Para que siempre que se reciba un body en la peticion se pueda leer en todas las rutas en formato json y de un formulario.
-app.use(express.json(), express.urlencoded({extended: true}));
+// WEBSOCKET
+const socketServer = new Server(httpServer);
 
-// Obtener todos los productos
-app.get('/api/products', async (req, res, next) => {
-    try {
-        const products = await ProductManager.getProducts();
-        res.status(202).json(products);
-    } catch (error) {
-        next(error);
-    }
-});
+app.use(express.static(`${root}/public`));
 
-// Obtener un producto por el ID
-app.get('/api/products/:pid', async (req, res, next) => {
-    try {
-        const {pid} = req.params;
-        const requiredProduct = await ProductManager.getProductById(pid);
-        res.status(202).json(requiredProduct)
-    } catch (error) {
-        next(error);
-    }
-});
-
-app.post("/api/products", async (req, res, next) => {
-    try {
-        console.log(req.body);
-    } catch (error) {
-        next(error);
-    }
-})
+app.use('/api/products', productsRouter);
+app.use('/', viewsRouter)
 
 // middleware, entran los next que estan "huerfanos" en las rutas
 app.use( async (err, req, res, next) => {
